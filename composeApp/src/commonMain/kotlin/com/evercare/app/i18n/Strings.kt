@@ -78,8 +78,27 @@ fun stringsFor(languageTag: String): Strings = forLanguage(primarySubtag(languag
 private fun forLanguage(subtag: String): Strings = when (subtag) {
     "zh" -> ChineseStrings
     "ja" -> JapaneseStrings
+    "ko" -> KoreanStrings
+    "es" -> SpanishStrings
+    "fr" -> FrenchStrings
     else -> EnglishStrings
 }
+
+/**
+ * Every language the UI speaks.
+ *
+ * The server prompts in `prompts.rs` must cover exactly these: a translated
+ * interface whose assistant answers in English is the half-supported state this
+ * design exists to prevent.
+ */
+val SupportedStrings: List<Strings> = listOf(
+    ChineseStrings,
+    EnglishStrings,
+    JapaneseStrings,
+    KoreanStrings,
+    SpanishStrings,
+    FrenchStrings,
+)
 
 /** `zh-Hans-CN` -> `zh`. Region and script never change which assistant we use. */
 fun primarySubtag(tag: String): String {

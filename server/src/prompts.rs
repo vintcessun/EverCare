@@ -132,4 +132,34 @@ mod tests {
         assert_eq!(explain_screen_instruction("zh-CN"), ZH_EXPLAIN);
         assert_eq!(explain_screen_instruction("de-DE"), EN_EXPLAIN);
     }
+
+    #[test]
+    fn every_ui_language_has_its_own_system_prompt() {
+        // These are exactly the languages the app ships UI strings for. A
+        // language missing here would give the user a translated interface and
+        // an English-speaking assistant.
+        let languages = ["zh-CN", "en-US", "ja-JP", "ko-KR", "es-ES", "fr-FR"];
+        let mut seen: Vec<&str> = Vec::new();
+
+        for tag in languages {
+            let prompt = system_prompt(tag);
+            assert!(!prompt.trim().is_empty(), "{tag} has an empty prompt");
+            assert!(
+                !seen.contains(&prompt),
+                "{tag} reuses another language's prompt"
+            );
+            seen.push(prompt);
+
+            let explain = explain_screen_instruction(tag);
+            assert!(!explain.trim().is_empty(), "{tag} has no explain instruction");
+        }
+    }
+
+    #[test]
+    fn regional_variants_resolve_to_the_same_prompt() {
+        assert_eq!(system_prompt("ko-KR"), system_prompt("ko"));
+        assert_eq!(system_prompt("es-MX"), system_prompt("es-ES"));
+        assert_eq!(system_prompt("fr-CA"), system_prompt("fr-FR"));
+        assert_eq!(system_prompt("zh-Hans-CN"), system_prompt("zh-TW"));
+    }
 }
