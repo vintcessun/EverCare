@@ -102,6 +102,7 @@ class I18nTest {
                 strings.permissionOverlayTitle, strings.permissionOverlayBody,
                 strings.permissionAccessibilityTitle, strings.permissionAccessibilityBody,
                 strings.permissionMicrophoneTitle, strings.permissionMicrophoneBody,
+                strings.permissionNotificationTitle, strings.permissionNotificationBody,
                 strings.grant, strings.granted, strings.startHelper, strings.stopHelper,
                 strings.settings, strings.aiServiceTitle,
                 strings.useEverCareService, strings.useEverCareServiceBody,
@@ -112,6 +113,7 @@ class I18nTest {
                 strings.trialDaysLeft,
                 strings.errorNoScreenText, strings.errorNetwork,
                 strings.errorNotConfigured, strings.errorScreenReadingUnsupported,
+                strings.errorScreenReadingNotEnabled,
                 strings.errorMicrophoneUnavailable,
             )
             values.forEach { value ->

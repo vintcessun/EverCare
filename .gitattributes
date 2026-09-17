@@ -1,0 +1,9 @@
+# Keep shell scripts and the Gradle wrapper LF, whatever the checkout platform:
+# a CRLF gradlew fails on macOS/Linux with "bad interpreter".
+* text=auto
+gradlew text eol=lf
+*.sh text eol=lf
+
+*.jar binary
+*.png binary
+*.apk binary

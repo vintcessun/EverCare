@@ -11,6 +11,9 @@
          foreground with a persistent notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- The panel is only ever used while another app is in front, which is
+         exactly when a foreground service needs this to reach the microphone. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -53,7 +56,7 @@
         <service
             android:name=".FloatingWindowService"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse|microphone">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Persistent on-screen reading and assistant helper for elderly users" />

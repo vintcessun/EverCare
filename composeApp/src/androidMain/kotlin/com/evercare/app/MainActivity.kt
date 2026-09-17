@@ -153,8 +153,8 @@ class MainActivity : ComponentActivity() {
             // no sign that it is running.
             if (!granted) {
                 steps += SetupStep(
-                    title = strings.permissionOverlayTitle,
-                    body = strings.permissionOverlayBody,
+                    title = strings.permissionNotificationTitle,
+                    body = strings.permissionNotificationBody,
                     isDone = false,
                     onGrant = {
                         requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)

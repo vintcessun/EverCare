@@ -15,8 +15,9 @@ import com.evercare.app.domain.ScreenTextReader
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 class EverCareApplication : Application() {
     val graph: AppGraph by lazy { AppGraph(this) }
@@ -36,9 +37,26 @@ class EverCareApplication : Application() {
  */
 class AppGraph(private val context: Context) {
 
-    val applicationScope = CoroutineScope(SupervisorJob())
+    val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val settingsRepository: SettingsRepository = AndroidSettingsRepository(context)
+
+    /**
+     * The language override, mirrored into memory.
+     *
+     * [LocaleProvider.currentLanguage] is called from composition -- on every
+     * recomposition of the floating panel -- so it must never touch disk. Reading
+     * it straight from DataStore with `runBlocking` produced an ANR on a cold
+     * start, which is what this field exists to prevent.
+     */
+    @Volatile
+    private var languageOverride: String = ""
+
+    init {
+        applicationScope.launch {
+            settingsRepository.settings.collect { languageOverride = it.languageOverride }
+        }
+    }
 
     val httpClient: HttpClient = HttpClient(OkHttp) {
         installEverCareDefaults()
@@ -50,12 +68,9 @@ class AppGraph(private val context: Context) {
 
     val localeProvider: LocaleProvider = AndroidLocaleProvider(
         context = context,
-        // Read straight from storage each time so a language change applies
-        // without restarting the app.
-        overrideProvider = {
-            runCatching { runBlocking { settingsRepository.current().languageOverride } }
-                .getOrDefault("")
-        },
+        // Reads the cached value, so a language change still applies without an
+        // app restart but costs nothing on the main thread.
+        overrideProvider = { languageOverride },
     )
 
     val assistant: AiAssistant = ChatClient(

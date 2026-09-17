@@ -48,6 +48,12 @@ class EverCareAccessibilityService : AccessibilityService() {
 
     private fun captureNow(): ScreenSnapshot {
         val root = rootInActiveWindow ?: return ScreenSnapshot.Empty
+
+        // Read the package name before recycling: recycle() clears the node's
+        // fields and may return it to the platform's pool, so touching it
+        // afterwards yields null at best and another window's data at worst.
+        val packageName = root.packageName?.toString()
+
         val lines = mutableListOf<String>()
         try {
             collectText(root, lines, depth = 0)
@@ -57,7 +63,7 @@ class EverCareAccessibilityService : AccessibilityService() {
         }
 
         return ScreenSnapshot(
-            appLabel = resolveAppLabel(root.packageName?.toString()),
+            appLabel = resolveAppLabel(packageName),
             lines = lines.deduplicateAdjacent(),
         )
     }

@@ -184,7 +184,10 @@ class AssistantController(
             }
 
             ScreenTextReader.Availability.NeedsPermission -> {
-                fail(strings.errorScreenReadingUnsupported)
+                // Not the same message as Unsupported: the phone can do this, the
+                // switch is simply off, and telling them otherwise would send them
+                // looking for a new phone instead of a settings toggle.
+                fail(strings.errorScreenReadingNotEnabled)
                 return null
             }
 

@@ -36,6 +36,8 @@ interface Strings {
     val permissionAccessibilityBody: String
     val permissionMicrophoneTitle: String
     val permissionMicrophoneBody: String
+    val permissionNotificationTitle: String
+    val permissionNotificationBody: String
     val grant: String
     val granted: String
     val startHelper: String
@@ -63,6 +65,10 @@ interface Strings {
     val errorNetwork: String
     val errorNotConfigured: String
     val errorScreenReadingUnsupported: String
+    /** Distinct from [errorScreenReadingUnsupported]: the phone *can*, but the
+     *  switch has not been turned on yet. Telling the user it cannot would send
+     *  them looking for a new phone instead of a settings toggle. */
+    val errorScreenReadingNotEnabled: String
     val errorMicrophoneUnavailable: String
 }
 
@@ -103,6 +109,8 @@ object ChineseStrings : Strings {
     override val permissionAccessibilityBody = "这样我才能把屏幕上的字念给您听"
     override val permissionMicrophoneTitle = "使用麦克风"
     override val permissionMicrophoneBody = "这样您可以直接说话问我"
+    override val permissionNotificationTitle = "允许通知"
+    override val permissionNotificationBody = "帮手在后台运行时，用一条通知告诉您它还在"
     override val grant = "去开启"
     override val granted = "已开启"
     override val startHelper = "打开帮手"
@@ -128,6 +136,7 @@ object ChineseStrings : Strings {
     override val errorNetwork = "网络好像不太好，待会儿再试试"
     override val errorNotConfigured = "还没设置好助手，请先在设置里选一个"
     override val errorScreenReadingUnsupported = "这部手机不能读取屏幕上的文字"
+    override val errorScreenReadingNotEnabled = "还没有开启读屏功能，请在设置里打开"
     override val errorMicrophoneUnavailable = "麦克风现在用不了"
 }
 
@@ -152,6 +161,8 @@ object EnglishStrings : Strings {
     override val permissionAccessibilityBody = "So I can read out what is on your screen"
     override val permissionMicrophoneTitle = "Use the microphone"
     override val permissionMicrophoneBody = "So you can simply talk to me"
+    override val permissionNotificationTitle = "Allow notifications"
+    override val permissionNotificationBody = "One quiet notification tells you the helper is still running"
     override val grant = "Turn on"
     override val granted = "On"
     override val startHelper = "Start helper"
@@ -177,6 +188,7 @@ object EnglishStrings : Strings {
     override val errorNetwork = "The connection seems slow. Let us try again in a moment"
     override val errorNotConfigured = "The assistant is not set up yet. Please choose one in Settings"
     override val errorScreenReadingUnsupported = "This phone cannot read the screen text"
+    override val errorScreenReadingNotEnabled = "Screen reading is not turned on yet. Please switch it on in Settings"
     override val errorMicrophoneUnavailable = "The microphone is not available right now"
 }
 
@@ -201,6 +213,8 @@ object JapaneseStrings : Strings {
     override val permissionAccessibilityBody = "画面の文字を読み上げるために使います"
     override val permissionMicrophoneTitle = "マイクを使う"
     override val permissionMicrophoneBody = "話しかけて質問できるようになります"
+    override val permissionNotificationTitle = "通知を許可する"
+    override val permissionNotificationBody = "相棒が動いていることを、静かな通知でお知らせします"
     override val grant = "オンにする"
     override val granted = "オン"
     override val startHelper = "相棒を出す"
@@ -226,5 +240,6 @@ object JapaneseStrings : Strings {
     override val errorNetwork = "つながりにくいようです。少ししてからもう一度どうぞ"
     override val errorNotConfigured = "アシスタントが未設定です。設定から選んでください"
     override val errorScreenReadingUnsupported = "このスマホでは画面の文字を読めません"
+    override val errorScreenReadingNotEnabled = "画面読み取りがまだオンになっていません。設定でオンにしてください"
     override val errorMicrophoneUnavailable = "いまマイクが使えません"
 }
