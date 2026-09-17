@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">长伴</string>
+    <string name="accessibility_service_label">长伴 读屏</string>
+    <string name="accessibility_service_description">允许长伴读取屏幕上的文字，这样才能念给您听、并解释给您听。长伴不会替您点击任何东西。</string>
+    <string name="helper_notification_channel">长伴帮手</string>
+    <string name="helper_notification_title">长伴已经准备好了</string>
+    <string name="helper_notification_body">点一下屏幕上的圆形按钮就可以用。</string>
+</resources>

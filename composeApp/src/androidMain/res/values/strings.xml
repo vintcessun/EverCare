@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- These four strings are shown by the Android system itself (launcher,
+         accessibility settings, notification channel), so they cannot come from
+         the Kotlin i18n layer and must live in platform resources. -->
+    <string name="app_name">EverCare</string>
+    <string name="accessibility_service_label">EverCare screen reading</string>
+    <string name="accessibility_service_description">Lets EverCare read the text on your screen, so it can read it aloud and explain it to you. EverCare never taps anything for you.</string>
+    <string name="helper_notification_channel">EverCare helper</string>
+    <string name="helper_notification_title">EverCare is ready to help</string>
+    <string name="helper_notification_body">Tap the round button on your screen.</string>
+</resources>

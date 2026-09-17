@@ -1,0 +1,29 @@
+# Gradle / Android
+.gradle/
+build/
+composeApp/build/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+captures/
+.cxx/
+
+# Rust
+server/target/
+server/evercare-data.json
+server/evercare-data.json.tmp
+server/.env
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+.fleet/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# OS
+.DS_Store
+Thumbs.db

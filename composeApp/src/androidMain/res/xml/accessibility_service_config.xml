@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configured to observe only what is needed to read the current screen:
+    window state and content changes, with content retrieval enabled.
+
+    No key events, no gesture interception, no input filtering: this service
+    reads, it never acts on the user's behalf.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackSpoken"
+    android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="200"
+    android:settingsActivity="com.evercare.app.MainActivity" />
