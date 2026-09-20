@@ -27,3 +27,9 @@ xcuserdata/
 # OS
 .DS_Store
 Thumbs.db
+
+# 部署产物（由 scripts/build-alinux3.ps1 生成）
+/run
+/run.bak
+/data/
+/scripts/.build_alinux3_inner.sh

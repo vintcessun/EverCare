@@ -120,8 +120,11 @@ class FloatingWindowService : LifecycleService(), ViewModelStoreOwner, SavedStat
             overlayWindowType(),
             // Not focusable, so typing in the app underneath still works; the
             // helper must never steal the keyboard.
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            //
+            // Deliberately without FLAG_LAYOUT_NO_LIMITS: that would let the
+            // bubble be dragged under the status bar or a display cutout, where
+            // an elderly user cannot get it back.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START

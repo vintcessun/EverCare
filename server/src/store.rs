@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
+
+use crate::codes::{self, RedeemCode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::RwLock;
@@ -98,6 +100,8 @@ impl Device {
 struct Snapshot {
     #[serde(default)]
     devices: Vec<Device>,
+    #[serde(default)]
+    codes: Vec<RedeemCode>,
 }
 
 /// A JSON-file-backed store. Deliberately not a database: the record count is
@@ -108,6 +112,8 @@ struct Snapshot {
 pub struct Store {
     path: Arc<String>,
     devices: Arc<RwLock<HashMap<String, Device>>>,
+    /// Keyed by code hash. Never holds a plaintext code.
+    codes: Arc<RwLock<HashMap<String, RedeemCode>>>,
 }
 
 impl Store {
@@ -124,10 +130,16 @@ impl Store {
             .into_iter()
             .map(|d| (d.device_id.clone(), d))
             .collect();
+        let codes = snapshot
+            .codes
+            .into_iter()
+            .map(|c| (c.code_hash.clone(), c))
+            .collect();
 
         Ok(Self {
             path: Arc::new(path.to_string()),
             devices: Arc::new(RwLock::new(devices)),
+            codes: Arc::new(RwLock::new(codes)),
         })
     }
 
@@ -268,6 +280,84 @@ impl Store {
         self.persist().await
     }
 
+    /// Mints `count` codes worth `months` each.
+    ///
+    /// Returns the plaintext codes. This is the only moment they exist outside
+    /// the hands of whoever runs the service: the store keeps hashes.
+    pub async fn mint_codes(&self, months: i64, count: usize, note: &str) -> Result<Vec<String>> {
+        if !(1..=36).contains(&months) {
+            return Err(Error("months must be between 1 and 36".into()));
+        }
+        if !(1..=200).contains(&count) {
+            return Err(Error("count must be between 1 and 200".into()));
+        }
+
+        let mut plaintext = Vec::with_capacity(count);
+        {
+            let mut codes = self.codes.write().await;
+            for _ in 0..count {
+                let code = codes::generate_code();
+                let record = RedeemCode {
+                    code_hash: hash_token(&code),
+                    months,
+                    note: note.trim().to_string(),
+                    created_at: Utc::now(),
+                    used_by: None,
+                    used_at: None,
+                };
+                codes.insert(record.code_hash.clone(), record);
+                plaintext.push(code);
+            }
+        }
+
+        self.persist().await?;
+        Ok(plaintext)
+    }
+
+    /// Redeems `code` for `device_id`.
+    ///
+    /// The duration comes from the code, never from the caller: a one-month code
+    /// buys one month even if the request asks for thirty-six. The code is marked
+    /// used before the subscription is extended, so a failure in between costs a
+    /// support conversation rather than letting a code be spent twice.
+    pub async fn redeem_code(&self, code: &str, device_id: &str) -> Result<(Device, i64)> {
+        let hash = hash_token(&codes::normalise(code));
+
+        let months = {
+            let mut codes = self.codes.write().await;
+            let record = codes
+                .get_mut(&hash)
+                .ok_or_else(|| Error("兑换码无效".into()))?;
+
+            if record.is_used() {
+                return Err(Error("兑换码已经用过了".into()));
+            }
+
+            record.used_by = Some(device_id.to_string());
+            record.used_at = Some(Utc::now());
+            record.months
+        };
+
+        let device = {
+            let mut devices = self.devices.write().await;
+            let device = devices
+                .get_mut(device_id)
+                .ok_or_else(|| Error("no such device".into()))?;
+            device.subscription.extend(months, "monthly");
+            device.clone()
+        };
+
+        self.persist().await?;
+        Ok((device, months))
+    }
+
+    /// How many codes have been minted, and how many of those are spent.
+    pub async fn code_stats(&self) -> (usize, usize) {
+        let codes = self.codes.read().await;
+        let used = codes.values().filter(|c| c.is_used()).count();
+        (codes.len(), used)
+    }
+
     pub async fn device_count(&self) -> usize {
         self.devices.read().await.len()
     }
@@ -275,6 +365,7 @@ impl Store {
     async fn persist(&self) -> Result<()> {
         let snapshot = Snapshot {
             devices: self.devices.read().await.values().cloned().collect(),
+            codes: self.codes.read().await.values().cloned().collect(),
         };
 
         let json = serde_json::to_vec_pretty(&snapshot)
@@ -433,6 +524,92 @@ mod tests {
 
         store.delete_device(&device.device_id).await.unwrap();
         assert!(store.authenticate(&token).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_minted_code_grants_exactly_what_it_is_worth() {
+        let store = temp_store("codes").await;
+        let (device, token) = store.register_device("phone", "android", 0).await.unwrap();
+
+        let minted = store.mint_codes(12, 1, "test batch").await.unwrap();
+        let code = &minted[0];
+        assert_eq!(code.len(), 128);
+
+        let (_, months) = store.redeem_code(code, &device.device_id).await.unwrap();
+        assert_eq!(months, 12);
+
+        let authed = store.authenticate(&token).await.unwrap();
+        assert!(authed.is_entitled(Utc::now()));
+        // Twelve 30-day months, minus the day already under way.
+        assert_eq!(authed.subscription.days_remaining(Utc::now()), 359);
+    }
+
+    #[tokio::test]
+    async fn a_code_cannot_be_used_twice() {
+        let store = temp_store("codes-once").await;
+        let (first, _) = store.register_device("a", "android", 0).await.unwrap();
+        let (second, _) = store.register_device("b", "android", 0).await.unwrap();
+
+        let minted = store.mint_codes(1, 1, "").await.unwrap();
+
+        store.redeem_code(&minted[0], &first.device_id).await.unwrap();
+        // The same device again, and a different one: both must fail.
+        assert!(store.redeem_code(&minted[0], &first.device_id).await.is_err());
+        assert!(store.redeem_code(&minted[0], &second.device_id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn an_unknown_code_is_refused() {
+        let store = temp_store("codes-unknown").await;
+        let (device, _) = store.register_device("phone", "android", 0).await.unwrap();
+
+        assert!(store.redeem_code("not-a-code", &device.device_id).await.is_err());
+        assert!(store
+            .redeem_code(&crate::codes::generate_code(), &device.device_id)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn spacing_and_case_do_not_break_a_code() {
+        let store = temp_store("codes-format").await;
+        let (device, _) = store.register_device("phone", "android", 0).await.unwrap();
+        let minted = store.mint_codes(1, 1, "").await.unwrap();
+
+        // What someone types after reading it off a slip of paper.
+        let typed = format!("  {}-{}  ", &minted[0][..64].to_uppercase(), &minted[0][64..]);
+        assert!(store.redeem_code(&typed, &device.device_id).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn codes_survive_a_restart_and_stay_used() {
+        let path = std::env::temp_dir().join("evercare-test-codes-reload.json");
+        let _ = std::fs::remove_file(&path);
+        let path = path.to_str().unwrap();
+
+        let (code, device_id) = {
+            let store = Store::load(path).await.unwrap();
+            let (device, _) = store.register_device("phone", "android", 0).await.unwrap();
+            let minted = store.mint_codes(1, 1, "").await.unwrap();
+            store.redeem_code(&minted[0], &device.device_id).await.unwrap();
+            (minted[0].clone(), device.device_id)
+        };
+
+        let reopened = Store::load(path).await.unwrap();
+        assert!(
+            reopened.redeem_code(&code, &device_id).await.is_err(),
+            "a used code must stay used across a restart"
+        );
+        assert_eq!(reopened.code_stats().await, (1, 1));
+    }
+
+    #[tokio::test]
+    async fn minting_rejects_silly_inputs() {
+        let store = temp_store("codes-bounds").await;
+        assert!(store.mint_codes(0, 1, "").await.is_err());
+        assert!(store.mint_codes(37, 1, "").await.is_err());
+        assert!(store.mint_codes(1, 0, "").await.is_err());
+        assert!(store.mint_codes(1, 500, "").await.is_err());
     }
 
     #[tokio::test]

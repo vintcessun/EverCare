@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod chat;
 pub mod health;
 pub mod subscription;
@@ -34,5 +35,8 @@ pub fn router(state: AppState) -> Router {
             "/v1/evercare/subscription/transfer",
             post(subscription::transfer),
         )
+        // Operator-only. Guarded by EVERCARE_ADMIN_TOKEN; disabled when unset.
+        .route("/v1/evercare/admin/codes", post(admin::mint_codes))
+        .route("/v1/evercare/admin/stats", get(admin::stats))
         .with_state(state)
 }

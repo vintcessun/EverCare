@@ -7,9 +7,11 @@
 //! so integration tests can run the real router in-process.
 
 pub mod auth;
+pub mod codes;
 pub mod config;
 pub mod error;
 pub mod prompts;
+pub mod quota;
 pub mod routes;
 pub mod state;
 pub mod store;
@@ -23,6 +25,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
+use crate::quota::Quota;
 use crate::state::AppState;
 use crate::store::Store;
 use crate::upstream::Upstream;
@@ -38,10 +41,13 @@ pub async fn build_app(config: Config) -> store::Result<Router> {
         config.upstream_model.clone(),
     );
 
+    let quota = Quota::new(config.daily_request_limit);
+
     let state = AppState {
         config,
         store,
         upstream,
+        quota,
     };
 
     Ok(routes::router(state)

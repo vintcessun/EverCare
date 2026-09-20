@@ -9,4 +9,7 @@
     <string name="helper_notification_channel">EverCare helper</string>
     <string name="helper_notification_title">EverCare is ready to help</string>
     <string name="helper_notification_body">Tap the round button on your screen.</string>
+
+    <!-- Pre-filled into Settings on first run. Self-hosters change it there. -->
+    <string name="default_server_url" translatable="false">https://evercare.vintces.icu</string>
 </resources>

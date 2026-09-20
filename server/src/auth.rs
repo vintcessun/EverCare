@@ -59,3 +59,33 @@ impl FromRequestParts<AppState> for SubscribedDevice {
         }
     }
 }
+
+
+/// Proves the caller holds the admin bearer token.
+///
+/// Guards code minting, which is effectively the ability to create money.
+pub struct AdminCaller;
+
+impl FromRequestParts<AppState> for AdminCaller {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let token = parts
+            .headers
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.strip_prefix("Bearer "))
+            .map(str::trim)
+            .unwrap_or_default();
+
+        if state.config.is_admin_token(token) {
+            Ok(AdminCaller)
+        } else {
+            tracing::warn!("rejected admin request");
+            Err(ApiError::Unauthorized)
+        }
+    }
+}

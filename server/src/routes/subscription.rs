@@ -90,45 +90,39 @@ pub async fn status(AuthedDevice(device): AuthedDevice) -> Json<SubscriptionStat
 
 #[derive(Deserialize)]
 pub struct RedeemRequest {
-    /// Placeholder for a real payment receipt (App Store / Play / WeChat Pay).
     pub code: String,
-    #[serde(default = "one")]
-    pub months: i64,
 }
 
-fn one() -> i64 {
-    1
-}
-
-/// Grants subscription months to the calling device.
+/// Redeems a code bought from whoever runs the service.
 ///
-/// TODO(payments): `code` must be verified against the store receipt API before
-/// any days are granted. This build accepts any non-empty code, which would hand
-/// out free months to anyone who can POST -- it is wired up so the app's payment
-/// flow can be built end to end, and must not ship as-is.
+/// How long the subscription is extended comes from the code, not the request.
+/// The client used to send `months`, which meant a one-month code could be
+/// redeemed for thirty-six. Codes are single use and 128 hex characters wide --
+/// see `codes.rs` for why each of those properties is there.
+///
+/// TODO(payments): when Google Play or App Store billing is wired up, verify the
+/// purchase receipt here and extend the subscription the same way. Codes stay
+/// useful regardless, for gifts and for users who cannot use a store.
 pub async fn redeem(
     State(state): State<AppState>,
     AuthedDevice(device): AuthedDevice,
     Json(request): Json<RedeemRequest>,
 ) -> ApiResult<Json<SubscriptionStatus>> {
-    if request.code.trim().is_empty() {
-        return Err(ApiError::BadRequest("code must not be empty".into()));
-    }
-    if !(1..=36).contains(&request.months) {
-        return Err(ApiError::BadRequest(
-            "months must be between 1 and 36".into(),
-        ));
-    }
-
-    let updated = state
+    let (updated, months) = state
         .store
-        .extend_subscription(&device.device_id, request.months, "monthly")
+        .redeem_code(&request.code, &device.device_id)
         .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+        .map_err(|e| {
+            // Logged without the code itself, so the log never becomes a list of
+            // working codes, and the message stays vague enough that the endpoint
+            // is not an oracle for guessing them.
+            tracing::warn!(device = %device.device_id, reason = %e, "redeem refused");
+            ApiError::BadRequest(e.to_string())
+        })?;
 
     tracing::info!(
         device = %updated.device_id,
-        months = request.months,
+        months,
         until = %updated.subscription.expires_at,
         "subscription extended"
     );

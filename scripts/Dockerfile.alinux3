@@ -1,0 +1,60 @@
+# 构建环境：与阿里云服务器同款 Alibaba Cloud Linux 3。
+#
+# 之所以在容器里编译而不是在服务器上编译，有两个原因：
+#   1. 服务器根分区只剩几个 G，Rust 工具链加 target 目录就能把它撑满；
+#   2. 二进制链接的 glibc 版本必须不高于服务器的版本，用同款系统编译最省心。
+#
+# 这个镜像比 xmu_assistant_sign_bot 那个小得多：EverCare 服务端的 TLS 走 rustls，
+# 没有 OpenSSL / OpenCV / FFmpeg 之类的原生依赖，所以只需要一套 Rust 工具链和
+# 一个能当链接器驱动用的 gcc。
+FROM alibaba-cloud-linux-3-registry.cn-hangzhou.cr.aliyuncs.com/alinux3/alinux3:220901.1
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV ALL_PROXY=${ALL_PROXY}
+ENV NO_PROXY=${NO_PROXY}
+ENV http_proxy=${HTTP_PROXY}
+ENV https_proxy=${HTTPS_PROXY}
+ENV all_proxy=${ALL_PROXY}
+ENV no_proxy=${NO_PROXY}
+
+# 阿里云的源在国内直连很快，走代理反而会掉到几十 KB/s，所以把它们排除在代理之外。
+# rustup 仍然需要代理，因此只排除镜像站而不是整体关掉。
+ENV NO_PROXY="${NO_PROXY},mirrors.aliyun.com,mirrors.cloud.aliyuncs.com"     no_proxy="${NO_PROXY},mirrors.aliyun.com,mirrors.cloud.aliyuncs.com"
+
+# 官方源里的 mirrors.cloud.aliyuncs.com 只有阿里云内网可达，换成公网地址。
+RUN set -eux; \
+    if [ -d /etc/yum.repos.d ]; then \
+      sed -i 's|http://mirrors.cloud.aliyuncs.com|https://mirrors.aliyun.com|g' /etc/yum.repos.d/*.repo || true; \
+      sed -i 's|https://mirrors.cloud.aliyuncs.com|https://mirrors.aliyun.com|g' /etc/yum.repos.d/*.repo || true; \
+    fi; \
+    dnf clean all; \
+    dnf makecache
+
+RUN dnf install -y \
+      gcc make git curl ca-certificates \
+      file findutils tar gzip which \
+      patchelf binutils \
+    && dnf clean all
+
+ARG RUST_VERSION=stable
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN set -eux; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --profile minimal --default-toolchain ${RUST_VERSION} --no-modify-path; \
+    rustc --version; \
+    cargo --version
+
+# 让 cargo 把下载缓存写到挂载卷之外，避免污染宿主机项目目录。
+ENV CARGO_TARGET_DIR=/work/server/target
+
+WORKDIR /work

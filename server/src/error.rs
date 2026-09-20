@@ -9,6 +9,8 @@ pub enum ApiError {
     Unauthorized,
     #[error("no active subscription")]
     SubscriptionRequired,
+    #[error("daily limit reached ({used}/{limit})")]
+    QuotaExceeded { used: u32, limit: u32 },
     #[error("{0}")]
     BadRequest(String),
     #[error("upstream provider error: {0}")]
@@ -25,6 +27,11 @@ impl ApiError {
             // 402 is the one the app turns into "订阅已过期" rather than a scary error.
             ApiError::SubscriptionRequired => {
                 (StatusCode::PAYMENT_REQUIRED, "subscription_required")
+            }
+            // 429 is the one the app turns into "今天问得有点多了，明天再来"
+            // rather than an error the user cannot act on.
+            ApiError::QuotaExceeded { .. } => {
+                (StatusCode::TOO_MANY_REQUESTS, "rate_limit_exceeded")
             }
             ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
             ApiError::Upstream(_) => (StatusCode::BAD_GATEWAY, "upstream_error"),

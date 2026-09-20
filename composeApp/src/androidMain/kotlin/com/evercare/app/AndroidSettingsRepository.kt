@@ -60,8 +60,10 @@ class AndroidSettingsRepository(private val context: Context) : SettingsReposito
         mode = this[Keys.Mode]?.let { name ->
             runCatching { AiMode.valueOf(name) }.getOrDefault(AiMode.EverCare)
         } ?: AiMode.EverCare,
+        // A platform string rather than the shared constant, so a test build can
+        // be pointed at a LAN server without changing common code.
         everCareServerUrl = this[Keys.ServerUrl]
-            ?: AssistantSettings.DEFAULT_EVERCARE_SERVER,
+            ?: context.getString(R.string.default_server_url),
         deviceToken = this[Keys.DeviceToken].orEmpty(),
         customBaseUrl = this[Keys.CustomBaseUrl].orEmpty(),
         customApiKey = this[Keys.CustomApiKey].orEmpty(),

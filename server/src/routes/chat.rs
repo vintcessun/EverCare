@@ -38,6 +38,23 @@ pub async fn explain_screen(
         return Err(ApiError::BadRequest("screen_text must not be empty".into()));
     }
 
+    // A screen full of text is normal; a megabyte of it is not, and we pay per
+    // token. Truncating beats rejecting: the user still gets an answer about the
+    // part of the screen that matters most, which is the top.
+    let screen_text: String = if screen_text.chars().count() > state.config.max_screen_chars {
+        tracing::info!(
+            device = %device.device_id,
+            chars = screen_text.chars().count(),
+            "screen text truncated"
+        );
+        screen_text
+            .chars()
+            .take(state.config.max_screen_chars)
+            .collect()
+    } else {
+        screen_text.to_string()
+    };
+
     let language = request.language.as_deref().unwrap_or("en");
     let mut content = format!(
         "{}
@@ -68,7 +85,8 @@ pub async fn explain_screen(
     };
 
     tracing::info!(device = %device.device_id, language = %language, "explain screen");
-    proxy_chat(state, chat).await
+    let device_id = device.device_id.clone();
+    proxy_chat(state, &device_id, chat).await
 }
 
 pub async fn models(State(state): State<AppState>) -> Json<Value> {
@@ -86,16 +104,35 @@ pub async fn models(State(state): State<AppState>) -> Json<Value> {
 
 pub async fn chat_completions(
     State(state): State<AppState>,
-    SubscribedDevice(_device): SubscribedDevice,
+    SubscribedDevice(device): SubscribedDevice,
     Json(request): Json<ChatRequest>,
 ) -> ApiResult<Response> {
     if request.messages.is_empty() {
         return Err(ApiError::BadRequest("messages must not be empty".into()));
     }
-    proxy_chat(state, request).await
+    proxy_chat(state, &device.device_id, request).await
 }
 
-async fn proxy_chat(state: AppState, request: ChatRequest) -> ApiResult<Response> {
+async fn proxy_chat(
+    state: AppState,
+    device_id: &str,
+    request: ChatRequest,
+) -> ApiResult<Response> {
+    // Every path that costs upstream tokens goes through here, so this is the
+    // one place the daily limit has to be enforced.
+    let usage = state
+        .quota
+        .try_consume(device_id, chrono::Utc::now())
+        .await
+        .map_err(|over| {
+            tracing::warn!(device = %device_id, used = over.used, limit = over.limit, "quota exceeded");
+            ApiError::QuotaExceeded {
+                used: over.used,
+                limit: over.limit,
+            }
+        })?;
+    tracing::debug!(device = %device_id, used = usage.used, limit = usage.limit, "quota ok");
+
     let language = request.language.as_deref().unwrap_or("en");
     let messages = with_system_prompt(language, request.messages);
 
@@ -107,7 +144,15 @@ async fn proxy_chat(state: AppState, request: ChatRequest) -> ApiResult<Response
         messages,
         stream: request.stream,
         temperature: request.temperature,
-        max_tokens: request.max_tokens,
+        // Clamped, never taken at face value: a client asking for a huge
+        // completion would be spending our money, and the assistant is supposed
+        // to answer in a few short sentences anyway.
+        max_tokens: Some(
+            request
+                .max_tokens
+                .unwrap_or(state.config.max_tokens)
+                .min(state.config.max_tokens),
+        ),
     };
 
     tracing::debug!(language = %language, stream = body.stream, "forwarding to provider");
@@ -148,6 +193,11 @@ async fn proxy_chat(state: AppState, request: ChatRequest) -> ApiResult<Response
         .status(status)
         .header(axum::http::header::CONTENT_TYPE, content_type)
         .header(axum::http::header::CACHE_CONTROL, "no-cache")
+        // Tells nginx not to buffer this response. Without it a reverse proxy
+        // holds the whole answer back and releases it at once, which destroys
+        // the point of streaming: the assistant is supposed to start speaking
+        // while the model is still writing.
+        .header("X-Accel-Buffering", "no")
         .body(Body::from_stream(stream))
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .into_response())
